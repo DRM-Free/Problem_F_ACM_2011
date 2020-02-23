@@ -28,10 +28,11 @@ struct Pb_instance
   //Since c++ 17, inline definition
   inline static std::multimap<int, Machine> machines_availability{};
   inline static std::map<int, int>          best_funds_each_day{};
+  inline static int                         restruct_duration;
 
   //Before c++17, define as follow outside of class in cpp file
   // std::multimap<int, Machine> Pb_instance::machines_availability{};
-  void wipe()
+  static void wipe()
   {
 
     //Clear static members in case a former problem was solved
@@ -47,7 +48,6 @@ struct Pb_instance
   {
     return currently_owned_machine.daily_product;
   };
-  int  restruct_duration;
   bool operator>=(Pb_instance p2)
   {
     return current_funds >= p2.current_funds;
@@ -77,9 +77,9 @@ struct Pb_instance
 
   void compute_next_incomes()
   {
-    //Get an iterator to upcoming days
-    auto it = machines_availability.upper_bound(current_day);
-    while (it != machines_availability.end())
+    //Get an iterator to upcoming choice days
+    auto it = best_funds_each_day.upper_bound(current_day);
+    while (it != best_funds_each_day.end())
     {
       //Here we want to store the best value attainable at the beginning of the day
       //This is necessary to check affordability of machines each day
@@ -90,27 +90,26 @@ struct Pb_instance
       current_day = it->first;
       ++it;
     }
+    //Do not forget to add resell value of currently owned machine to final funds
+    current_funds += currently_owned_machine.resell_value;
   }
   void solve()
   {
-    //Compute list of decision days
-    std::vector<int> decision_days;
-    for (auto&& day : machines_availability)
-    {
-      decision_days.push_back(day.first);
-    }
     Pb_instance current_best_choice = *this;
     //For each decision day, determine the best situation that can be attained
     //If you know you have the most money on a particular day, you do not need to worry about affordability of subsequent machines, as
     //if you can't afford one with the current best  funds available, the machine will not be affordable for any strategy
-    for (int day_index = 0; day_index < decision_days.size() - 1; ++day_index)
+    // for (int day_index = 0; day_index < decision_days.size() - 1; ++day_index)
+
+    //Iterator to upcoming choice days
+    auto it = machines_availability.upper_bound(current_day);
+    while (it != machines_availability.end())
     {
+      //Compute the future starting from current day
+      current_day = it->first;
       //available_choices is the list of available machines this day
-      auto available_choices =
-        machines_availability.equal_range(decision_days[day_index]);
-      //Create a default scenario to which compare first choice (this scenario corresponds to buying no machine)
-      current_best_choice.wait_income(decision_days[day_index + 1]);
-      //Browse all available machines
+      auto available_choices = machines_availability.equal_range(it->first);
+      //Browse all available machines (starting situation is considered to be a machine with 0 cost and 0 production)
       for (auto machine = available_choices.first; machine != available_choices.second;
            ++machine)
       {
@@ -119,12 +118,14 @@ struct Pb_instance
         hyphothesis.buy_machine(machine->second);
         //We just bought a machine. Wait until next day for income start
         hyphothesis.next_day();
-        hyphothesis.wait_income(decision_days[day_index + 1]);
-        current_best_choice =
-          current_best_choice >= hyphothesis ? current_best_choice : hyphothesis;
+        hyphothesis.compute_next_incomes();
+        //If we just "bought" the ending machine (0,0,0), we need not to compute next incomes
+        //Instead add current funds to best funds each day
       }
+      ++it;
     }
-    std::cout << "best available funds : " << current_best_choice.current_funds << "\n";
+    std::cout << "best available funds : " << best_funds_each_day[restruct_duration]
+              << "\n";
   }
 
   std::vector<int> line_info(std::istream& s)
@@ -136,7 +137,7 @@ struct Pb_instance
     return split(line, ' ');
   }
 
-  bool get_problem(Pb_instance& pb, std::istream& s)
+  bool get_problem(std::istream& s)
   {
 
     std::vector<int> info = line_info(s);
@@ -147,9 +148,10 @@ struct Pb_instance
     }
     int machines_count = info[0];
     //This map stores each machine available on day d, d being a key of the map
-    pb.current_funds = info[1];
-    pb.restruct_duration = info[2];
+    current_funds = info[1];
+    restruct_duration = info[2];
     Machine m;
+    best_funds_each_day[info[2]] = 0;
     for (int m_idx = 0; m_idx < machines_count; ++m_idx)
     {
       info = line_info(s);
@@ -157,38 +159,36 @@ struct Pb_instance
       m.resell_value = info[2];
       m.daily_product = info[3];
       machines_availability.insert({info[0], m});
+      //Store days on which available money will habe to be computed and choices made
+      best_funds_each_day[info[0]] = 0;
     }
-    //Insert a -virtual- machine at the end for simulating the sale of lastly owned machine
-    m.buy_cost = 0;
-    m.daily_product = 0;
-    m.resell_value = 0;
-    machines_availability.insert({info[2], m});
     return true;
   }
+};
 
-  //Compute_subset uses dynamic programming to determine for each machine whether or not to buy it
-  //In the end, only the amount of money after the last machine is sold is to be optimized
-  //Past decision informations are kept
+//Compute_subset uses dynamic programming to determine for each machine whether or not to buy it
+//In the end, only the amount of money after the last machine is sold is to be optimized
+//Past decision informations are kept
 
-  int main()
+int main()
+{
+  //SEE input file might be at another location or the file system might be different
+  std::string   file_name = "input.txt";
+  std::ifstream s(file_name);
+  if (!s.is_open())
   {
-    //SEE input file might be at another location or the file system might be different
-    std::string   file_name = "input.txt";
-    std::ifstream s(file_name);
-    if (!s.is_open())
-    {
-      std::cout << "failed to open " << file_name << '\n';
-    }
-    else
-    {
-      Pb_instance pb;
-
-      while (get_problem(pb, s)) //Iterate over problem instances
-      {
-        pb.solve();
-        Pb_instance::wipe();
-      }
-
-      return 0;
-    }
+    std::cout << "failed to open " << file_name << '\n';
   }
+  else
+  {
+    Pb_instance pb;
+
+    while (pb.get_problem(s)) //Iterate over problem instances
+    {
+      pb.solve();
+      Pb_instance::wipe();
+    }
+    s.close();
+    return 0;
+  }
+}
