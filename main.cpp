@@ -75,10 +75,19 @@ struct Pb_instance
     current_day++;
   };
 
-  void compute_next_incomes()
+  void compute_next_funds()
   {
+    //Do not forget to add resell value of currently owned machine to final funds, as it can be used
+    //to buy another machine
+    // current_funds += currently_owned_machine.resell_value;
     //Get an iterator to upcoming choice days
-    auto it = best_funds_each_day.upper_bound(current_day);
+    auto it = best_funds_each_day.lower_bound(current_day);
+    //We just bought a machine. Wait until next day for income start
+    //We still need to store a value for the day of the sale
+    best_funds_each_day[it->first] =
+      std::max(best_funds_each_day[it->first],
+               currently_owned_machine.resell_value + current_funds);
+    ++it;
     while (it != best_funds_each_day.end())
     {
       //Here we want to store the best value attainable at the beginning of the day
@@ -90,8 +99,6 @@ struct Pb_instance
       current_day = it->first;
       ++it;
     }
-    //Do not forget to add resell value of currently owned machine to final funds
-    current_funds += currently_owned_machine.resell_value;
   }
   void solve()
   {
@@ -102,25 +109,26 @@ struct Pb_instance
     // for (int day_index = 0; day_index < decision_days.size() - 1; ++day_index)
 
     //Iterator to upcoming choice days
-    auto it = machines_availability.upper_bound(current_day);
+    auto it = machines_availability.lower_bound(current_day);
     while (it != machines_availability.end())
     {
       //Compute the future starting from current day
       current_day = it->first;
       //available_choices is the list of available machines this day
-      auto available_choices = machines_availability.equal_range(it->first);
-      //Browse all available machines (starting situation is considered to be a machine with 0 cost and 0 production)
+      auto        available_choices = machines_availability.equal_range(it->first);
+      Pb_instance current_situation = *this;
+      //Browse all available machines (We consider the initial situation to own a machine with 0 cost and 0 production)
       for (auto machine = available_choices.first; machine != available_choices.second;
            ++machine)
       {
+        current_situation = *this;
         //Time to simulate affordable choices and compare outcomes
-        Pb_instance hyphothesis = *this;
-        hyphothesis.buy_machine(machine->second);
-        //We just bought a machine. Wait until next day for income start
-        hyphothesis.next_day();
-        hyphothesis.compute_next_incomes();
+        current_situation.buy_machine(machine->second);
+        current_situation.compute_next_funds();
         //If we just "bought" the ending machine (0,0,0), we need not to compute next incomes
         //Instead add current funds to best funds each day
+
+        //FIXME current situation each day should be best starting situation found from last round
       }
       ++it;
     }
@@ -139,6 +147,7 @@ struct Pb_instance
 
   bool get_problem(std::istream& s)
   {
+    current_day = 0;
 
     std::vector<int> info = line_info(s);
     std::vector<int> end_indicator(3, 0);
@@ -148,9 +157,16 @@ struct Pb_instance
     }
     int machines_count = info[0];
     //This map stores each machine available on day d, d being a key of the map
-    current_funds = info[1];
+    current_funds = 0;
     restruct_duration = info[2];
     Machine m;
+    //Insert a machine of cost 0, income 0 and resell value that represent the initial available funds
+    m.buy_cost = 0;
+    m.resell_value = info[1];
+    m.daily_product = 0;
+    machines_availability.insert({0, m});
+
+    best_funds_each_day[0] = current_funds;
     best_funds_each_day[info[2]] = 0;
     for (int m_idx = 0; m_idx < machines_count; ++m_idx)
     {
