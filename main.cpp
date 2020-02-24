@@ -139,7 +139,7 @@ struct Pb_instance
       ++it;
     }
     std::cout << "best available funds : "
-              << best_situation_each_day[restruct_duration].total() << "\n";
+              << best_situation_each_day[restruct_duration + 1].total() << "\n";
   }
 
   std::vector<int> line_info(std::istream& s)
@@ -183,7 +183,9 @@ struct Pb_instance
       best_situation_each_day[info[0]] = initial_situation;
     }
     //When the restructuration ends, also add a default best situation
-    best_situation_each_day[restruct_duration] = initial_situation;
+    //We are interested in the situation at the end of day D, which is equivalent to situation
+    //at the beginning of day D+1
+    best_situation_each_day[restruct_duration + 1] = initial_situation;
     return true;
   }
 };
