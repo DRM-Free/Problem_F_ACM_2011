@@ -34,7 +34,7 @@ struct Financial_situation
   }
   bool operator>(Financial_situation s)
   {
-    return total() > s.funds + s.total();
+    return total() > s.total();
   }
   bool buy_machine(Machine m)
   {
@@ -84,15 +84,17 @@ struct Pb_instance
   //Compare each current best situation with future situation if current machine is kept
   void update_best_situations(Financial_situation current_situation)
   {
-    //Get an iterator to upcoming choice days
-    auto it = best_situation_each_day.upper_bound(current_day);
+    //SEE possible optimization : as the considered machine is only profitable after a known
+    //number of days, update of the best results can be started on this day
+    //Iterator to upcoming choice days
+    auto it = best_situation_each_day.lower_bound(current_day);
     //We just bought a machine. Income starts with a one day delay
     ++current_day;
+    ++it;
 
     while (it != best_situation_each_day.end())
     {
       //The day the machine is bought, no income is generated, so the machine will not improve over the current best
-      ++it;
       //Here we want to store the best value attainable at the beginning of the day
       //This is necessary to check affordability of machines each day
       //Compute income to next decision day
@@ -102,15 +104,15 @@ struct Pb_instance
         best_situation_each_day[it->first] = current_situation;
       }
       current_day = it->first;
+      ++it;
     }
   }
+  //For each decision day, determine the best situation that can be attained
+  //If you know you have the most money on a particular day, you do not need to worry about
+  //affordability of subsequent machines, as if you can't afford one with the current best
+  //funds available, the machine will not be affordable for any strategy
   void solve()
   {
-    //For each decision day, determine the best situation that can be attained
-    //If you know you have the most money on a particular day, you do not need to worry about affordability of subsequent machines, as
-    //if you can't afford one with the current best  funds available, the machine will not be affordable for any strategy
-    // for (int day_index = 0; day_index < decision_days.size() - 1; ++day_index)
-
     //Iterator to upcoming choice days
     auto it = machines_availability.lower_bound(current_day);
     while (it != machines_availability.end())
@@ -188,7 +190,7 @@ struct Pb_instance
 
 int main()
 {
-  //SEE input file might be at another location or the file system might be different
+  //SEE select input file here
   std::string   file_name = "input.txt";
   std::ifstream s(file_name);
   if (!s.is_open())
