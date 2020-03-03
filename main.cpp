@@ -1,11 +1,12 @@
 #include <algorithm>
+#include <cmath>
 #include <fstream>
 #include <iostream>
 #include <map>
+#include <random>
 #include <sstream>
 #include <string>
 #include <vector>
-
 struct Machine
 {
   int buy_cost = 0;
@@ -191,6 +192,33 @@ std::optional<Pb_instance> read_problem(std::istream& is)
   {
     auto [machine, day_available] = read_machine(is);
     pb.add_machine(machine, day_available);
+  }
+  return pb;
+}
+
+Pb_instance generate_problem()
+{
+  int machines_count = 100'000;
+  int initial_funds = 20;
+  int restruct_duration = 1'000'000'000;
+
+  std::random_device              rd;
+  std::mt19937                    gen(rd());
+  std::uniform_int_distribution<> machine_resell_value_dis(1, std::pow(10, 9));
+  std::uniform_int_distribution<> machine_buy_price_dis(2, std::pow(10, 9));
+  std::uniform_int_distribution<> machine_availability_dis(1, restruct_duration);
+  std::uniform_int_distribution<> machine_product_dis(1, std::pow(10, 9));
+
+  Pb_instance pb{restruct_duration, initial_funds};
+
+  for (int m_idx = 0; m_idx < machines_count; ++m_idx)
+  {
+
+    Machine m{machine_buy_price_dis(gen), machine_resell_value_dis(gen),
+              machine_product_dis(gen)};
+    int     day_available = machine_availability_dis(gen);
+    m.resell_value = std::min(m.resell_value, m.buy_cost - 1);
+    pb.add_machine(m, day_available);
   }
   return pb;
 }
