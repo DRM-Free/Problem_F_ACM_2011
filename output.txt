@@ -1,5 +1,0 @@
-Case 1 : 44
-Case 2 : 34
-Case 3 : 10
-Case 4 : 12
-Case 5 : 11

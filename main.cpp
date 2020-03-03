@@ -1,5 +1,4 @@
 #include <algorithm>
-#include <cmath>
 #include <fstream>
 #include <iostream>
 #include <map>
@@ -9,9 +8,9 @@
 #include <vector>
 struct Machine
 {
-  int buy_cost = 0;
-  int resell_value = 0;
-  int daily_product = 0;
+  int  buy_cost = 0;
+  int  resell_value = 0;
+  long daily_product = 0;
 };
 
 class Financial_situation
@@ -55,7 +54,7 @@ public:
       return false;
     }
   }
-  int current_income() const
+  long current_income() const
   {
     return owned_machine.daily_product;
   }
@@ -198,16 +197,18 @@ std::optional<Pb_instance> read_problem(std::istream& is)
 
 Pb_instance generate_problem()
 {
-  int machines_count = 100'000;
+  constexpr int n10p9 = 1'000'000'000;
+
+  int machines_count = 50'000;
   int initial_funds = 20;
-  int restruct_duration = 1'000'000'000;
+  int restruct_duration = n10p9;
 
   std::random_device              rd;
-  std::mt19937                    gen(rd());
-  std::uniform_int_distribution<> machine_resell_value_dis(1, std::pow(10, 9));
-  std::uniform_int_distribution<> machine_buy_price_dis(2, std::pow(10, 9));
+  std::mt19937                    gen(0);
+  std::uniform_int_distribution<> machine_resell_value_dis(1, 50);
+  std::uniform_int_distribution<> machine_buy_price_dis(2, 50);
   std::uniform_int_distribution<> machine_availability_dis(1, restruct_duration);
-  std::uniform_int_distribution<> machine_product_dis(1, std::pow(10, 9));
+  std::uniform_int_distribution<> machine_product_dis(1, n10p9);
 
   Pb_instance pb{restruct_duration, initial_funds};
 
@@ -236,8 +237,12 @@ int main()
     std::cout << "failed to open " << input_file_name << '\n';
     return 0;
   }
+
+  // Pb_instance pb = generate_problem();
+  // output_file << pb.solve();
+
   int pb_index = 1;
-  //Iterate over problem instances
+  // Iterate over problem instances
   while (input_file)
   {
     auto opt_pb = read_problem(input_file);
