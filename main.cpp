@@ -5,31 +5,36 @@
 #include <sstream>
 #include <string>
 #include <vector>
-std::vector<int> split(const std::string& s, char delimiter)
-{
-  std::vector<int>   tokens;
-  std::string        token;
-  std::istringstream tokenStream(s);
-  while (std::getline(tokenStream, token, delimiter))
-  {
-    tokens.push_back(std::stoi(token));
-  }
-  return tokens;
-}
 
 struct Machine
 {
-  int buy_cost;
-  int resell_value;
-  int daily_product;
+  int buy_cost = 0;
+  int resell_value = 0;
+  int daily_product = 0;
 };
-struct Financial_situation
+
+class Financial_situation
 {
-  long    funds;
-  Machine owned_machine = {0, 0, 0};
-  long    total() const
+private:
+  // SEE: member variable should be private and initialized
+  long    funds;         // initial funds are always needed
+  Machine owned_machine; // Start with no machine by default
+
+public:
+  //Optional machine. Default is a "virtual" machine with no production and no value
+  Financial_situation(long funds, Machine m = {}) : funds(funds), owned_machine(m){};
+
+  long total() const
   {
     return funds + owned_machine.resell_value;
+  }
+  long get_funds() const
+  {
+    return funds;
+  }
+  Machine get_machine() const
+  {
+    return owned_machine;
   }
   bool operator>(Financial_situation s) const
   {
@@ -59,22 +64,38 @@ struct Financial_situation
     current_day = target_day;
   }
 };
-struct Pb_instance
-{
-  //machines_availability stores each machine available on day d, d being a key of the map
 
-  std::multimap<int, Machine> machines_availability{};
+class Pb_instance
+{
+private:
+  //machines_availability stores each machine available on day d, d being a key of the map
+  std::multimap<int, Machine> machines_availability;
   //best_situation_each_day stores the best money score atteinable each day and the machine to own
   //at the beginning of the day in order to reach this score, making retreival of optimal strategy trivial
-  std::map<int, Financial_situation> best_situation_each_day{};
+  std::map<int, Financial_situation> best_situation_each_day;
   int                                restruct_duration;
   Financial_situation                initial_situation;
-  void                               wipe()
+  int                                current_day = 0;
+
+public:
+  Pb_instance(int restruct_duration, int initial_funds)
+    : restruct_duration(restruct_duration), initial_situation(initial_funds)
   {
-    machines_availability.clear();
-    best_situation_each_day.clear();
+    //The day the restructuration ends, also add a default best situation
+    //Used algorithm computes the best situation at the beginning of each day
+    //We are interested in the situation at the end of day D, which is equivalent to situation
+    //at the beginning of day D+1
+    best_situation_each_day.insert({restruct_duration + 1, initial_situation});
   }
-  int current_day = 0;
+
+  void add_machine(Machine m, int day_available)
+  {
+    machines_availability.insert({day_available, m});
+    //Store days on which available money will have to be computed and choices made
+    //Fill the best situation so far for each day with a default (as if no machine was ever bought)
+    best_situation_each_day.emplace(day_available, initial_situation);
+  }
+
   //Compare each current best situation with future situations if current machine is kept
   void update_best_situations(Financial_situation current_situation)
   {
@@ -93,9 +114,9 @@ struct Pb_instance
 
       //Compute income to next decision day
       current_situation.compute_income(current_day, it->first);
-      if (current_situation > best_situation_each_day[it->first])
+      if (current_situation > best_situation_each_day.at(it->first))
       {
-        best_situation_each_day[it->first] = current_situation;
+        best_situation_each_day.at(it->first) = current_situation;
       }
       current_day = it->first;
       ++it;
@@ -111,14 +132,11 @@ struct Pb_instance
       current_day = it->first;
       //available_choices is the list of available machines this day
       auto available_choices = machines_availability.equal_range(it->first);
-      Financial_situation current_situation;
       //Browse all available machines (We consider the initial situation to own a machine with 0 cost and 0 production)
       for (auto machine = available_choices.first; machine != available_choices.second;
            ++machine)
       {
-        current_situation.owned_machine =
-          best_situation_each_day[current_day].owned_machine;
-        current_situation.funds = best_situation_each_day[current_day].funds;
+        Financial_situation current_situation = best_situation_each_day.at(current_day);
 
         //Buy all affordable choices and compare outcomes
         //For each decision day, we will proceed to determine the best situation that can be attained
@@ -132,81 +150,77 @@ struct Pb_instance
       }
       ++it;
     }
-    return best_situation_each_day[restruct_duration + 1].total();
-  }
-
-  std::vector<int> line_info(std::istream& s)
-  {
-    std::string line;
-    std::getline(s, line);
-    //remove the nasty \r at the end of line
-    line.pop_back();
-    return split(line, ' ');
-  }
-
-  bool get_problem(std::istream& s)
-  {
-    current_day = 0;
-
-    std::vector<int> info = line_info(s);
-    std::vector<int> end_indicator(3, 0);
-    if (info == end_indicator)
-    {
-      return false;
-    }
-    int machines_count = info[0];
-    initial_situation.funds = info[1];
-    restruct_duration = info[2];
-    Machine m;
-    //Start with a "virtual" machine with no value and no production
-    m.buy_cost = 0;
-    m.daily_product = 0;
-    m.resell_value = 0;
-    initial_situation.owned_machine = m;
-    for (int m_idx = 0; m_idx < machines_count; ++m_idx)
-    {
-      info = line_info(s);
-      m.buy_cost = info[1];
-      m.resell_value = info[2];
-      m.daily_product = info[3];
-      machines_availability.insert({info[0], m});
-      //Store days on which available money will have to be computed and choices made
-      //Fill the best situation so far for each day with a default (as if no machine was ever bought)
-      best_situation_each_day[info[0]] = initial_situation;
-    }
-    //When the restructuration ends, also add a default best situation
-    //Used algorithm computes the best situation at the beginning of each day
-    //We are interested in the situation at the end of day D, which is equivalent to situation
-    //at the beginning of day D+1
-    best_situation_each_day[restruct_duration + 1] = initial_situation;
-    return true;
+    return best_situation_each_day.at(restruct_duration + 1).total();
   }
 };
+
+std::pair<Machine, int> read_machine(std::istream& is)
+{
+  int day_available;
+  int buy_cost;
+  int resell_value;
+  int daily_product;
+
+  is >> day_available;
+  is >> buy_cost;
+  is >> resell_value;
+  is >> daily_product;
+
+  return {Machine{buy_cost, resell_value, daily_product}, day_available};
+}
+
+std::optional<Pb_instance> read_problem(std::istream& is)
+{
+  int machines_count;
+  int initial_funds;
+  int restruct_duration;
+
+  is >> machines_count;
+  is >> initial_funds;
+  is >> restruct_duration;
+
+  // if this is the "end" of the test cases
+  if (machines_count == 0 && initial_funds == 0 && restruct_duration == 0)
+  {
+    return std::nullopt;
+  }
+
+  Pb_instance pb{restruct_duration, initial_funds};
+
+  for (int m_idx = 0; m_idx < machines_count; ++m_idx)
+  {
+    auto [machine, day_available] = read_machine(is);
+    pb.add_machine(machine, day_available);
+  }
+  return pb;
+}
 
 int main()
 {
   //SEE select input file here
-  std::string   input_file_name = "input.txt";
-  std::ifstream is(input_file_name);
+  std::string   input_file_name = "input.txt"; // SEE: take that in the param
+  std::ifstream input_file(input_file_name);
   std::string   output_file_name = "output.txt";
 
-  std::ofstream os(output_file_name, std::ios::binary);
-  if (!is.is_open())
+  std::ofstream output_file(output_file_name, std::ios::binary);
+  if (!input_file.is_open())
   {
     std::cout << "failed to open " << input_file_name << '\n';
     return 0;
   }
-  Pb_instance pb;
-  int         pb_index = 1;
-  long        pb_sol;
+  int pb_index = 1;
   //Iterate over problem instances
-  while (pb.get_problem(is))
+  while (input_file)
   {
-    pb_sol = pb.solve();
-    pb.wipe();
-    os << "Case " + std::to_string(pb_index) + " : " + std::to_string(pb_sol) + '\n';
-    ++pb_index;
+    auto opt_pb = read_problem(input_file);
+    if (opt_pb.has_value())
+    {
+      Pb_instance pb = opt_pb.value();
+      long        pb_sol = pb.solve();
+      output_file << "Case " + std::to_string(pb_index) + " : " + std::to_string(pb_sol) +
+                       '\n';
+      ++pb_index;
+    }
   }
-  is.close();
   return 0;
 }
